@@ -1,10 +1,10 @@
 fuzzycactus
 ===========
 
-Given a file and a mutated version of that file...
+Given a file and a mutated version of that file that crashes MobileSafari, this finds the bytes that cause the mutated version to crash MobileSafari.
 
 What it does:  
-This tool can turn anyone's freshly jailbroken device into a fuzzing machine in minutes. All the setup is handled for you.
+This will generate a file where the only differences remaining between it and the original are the differences required to cause a crash. It will also give you the offsets of those differences and what they are. Depends on https://github.com/uroboro/hexdiff/
 
 How it works:  
 Soooo complicated. I'll probably do a blogpost or something.  
