@@ -1,4 +1,4 @@
-fuzzycactus
+bytefinder
 ===========
 
 Given a file and a mutated version of that file that crashes MobileSafari, this finds the bytes that cause the mutated version to crash MobileSafari.
@@ -8,7 +8,7 @@ This will generate a file where the only differences remaining between it and th
 
 How it works:  
 Soooo complicated. I'll probably do a blogpost or something.  
-No network connection is required. You should, however, start and stop the script over ssh (rather than mobileterminal) to avoid confusing the device as it does its work. Once the script is started you can safely disconnect.
+No network connection is required. You should, however, start and stop the script over ssh (rather than mobileterminal) to avoid confusing the device as it does its work.
 
 Always remember: Before you begin fuzzing, go to 'Settings' > 'General' > 'About' > 'Diagnostics & Usage' and check the "Don't Send" option. Otherwise, all your hard work will go to Apple and you will be sad. =(
 

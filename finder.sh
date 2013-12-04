@@ -2,7 +2,7 @@
 
 slowdown=0
 time=11
-params=( $( for arg in $@; do echo "$arg"; done ) )
+params=( $( for arg in "$@"; do echo "$arg"; done ) )
 usage="Usage: finder.sh -f ./original -m ./mutated [-t 11]"
 
 i=0
