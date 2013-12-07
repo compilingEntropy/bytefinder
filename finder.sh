@@ -1,6 +1,6 @@
 #!/bin/bash
 
-slowdown=0
+reliable=0
 time=11
 params=( $( for arg in "$@"; do echo "$arg"; done ) )
 usage="Usage: finder.sh -f ./original -m ./mutated [-t 11]"
@@ -16,8 +16,8 @@ for arg in "${params[@]}"; do
 	if [[ "$arg" == "-t" ]]; then
 		time="${params[$i+1]}"
 	fi
-	if [[ "$arg" == "-s" ]]; then
-		slowdown=1
+	if [[ "$arg" == "-r" ]]; then
+		reliable=1
 	fi
 	((i++))
 done
@@ -99,12 +99,8 @@ segment()
 	unset pieces
 	start=1
 
-	if [ $npieces -lt $diffs ]; then
+	if (( ( $npieces * 2 ) - 1 < $diffs )); then
 		length=$(( ( $diffs + $npieces - 1 ) / $npieces )) #use fancy math to divide with ceil instead of floor
-		sqrt=$( echo "scale=0;sqrt ( $diffs )" | bc )
-		if [ $npieces -gt $sqrt ]; then
-			length=$(( $length - ( $npieces - $sqrt ) ))
-		fi
 
 		for (( k = 1; k <= $npieces; k++ )); do
 			end=$(( $length + $start - 1 ))
@@ -159,10 +155,6 @@ inject()
 	sleep $time
 	resetsafari
 	#killall -KILL mediaserverd
-	echo "Safari killed"
-	if [ $slowdown -eq 1 ]; then
-		slowdown
-	fi
 	echo "~$i $( date '+%y.%m.%d-%H.%M.%S' )" >> ./tested.log
 }
 
@@ -177,7 +169,7 @@ testfile()
 	after=$crashcount
 }
 
-#find where the crashtime fits in the logs and return the file that caused it to files[]
+#find where the crashtime fits in the logs
 comparetimes()
 {
 if [ $crashyear -eq $syear ]; then
@@ -229,50 +221,45 @@ shour="${stime:9:2}"
 sminute="${stime:12:2}"
 ssecond="${stime:15:2}"
 
-crashtime="$( date '+%y.%m.%d-%H.%M.%S' )"
-crashyear="${stime:0:2}"
-crashmonth="${stime:3:2}"
-crashday="${stime:6:2}"
-crashhour="${stime:9:2}"
-crashminute="${stime:12:2}"
-crashsecond="${stime:15:2}"
-
 #crash reliablilty test
 pass=0
 fail=0
 testnum=15
 file=$mutated
-echo "Starting reliablilty test."
-for (( j = 0; j < 3; j++ )); do
-	for (( i = 1; i <= $testnum; i++ )); do
+if [ $reliable -eq 0 ]; then
+	echo "Starting reliablilty test."
+	for (( j = 0; j < 3; j++ )); do
+		for (( i = 1; i <= $testnum; i++ )); do
 
-		echo "( $i / $testnum )"
-		testfile
+			echo "( $i / $testnum )"
+			testfile
 
-		if [ $after -gt $before ]; then
-			((pass++))
+			if [ $after -gt $before ]; then
+				((pass++))
+			else
+				((fail++))
+			fi
+		done
+
+		reliablilty=$(( ( $pass * 100 ) / $testnum ))
+		echo "Your crash is $reliablilty% reliable."
+		if [ $reliablilty -ne 100 ]; then
+			#warn, possibly exit
+			echo "Not good enough, increasing time..."
+			((time+=5))
 		else
-			((fail++))
+			echo "Continuing..."
+			break
 		fi
 	done
-
-	reliablilty=$(( ( $pass * 100 ) / $testnum ))
-	echo "Your crash is $reliablilty% reliable."
 	if [ $reliablilty -ne 100 ]; then
-		#warn, possibly exit
-		echo "Not good enough, increasing time..."
-		((time+=5))
-	else
-		echo "Continuing..."
-		break
+		echo "Looks like your crash is unreliable. :("
+		exit
 	fi
-done
-
-if [ $reliablilty -ne 100 ]; then
-	#warn, possibly exit
-	echo "Looks like your crash is unreliable. :("
-	exit
+else
+	echo "Skipping reliablilty test, this is not recommended!"
 fi
+
 
 hexdiff -f ./$original -m ./$mutated > ./$( echo "$mutated" | sed "s|\.$extension||g" )_diff.log
 
@@ -284,8 +271,7 @@ while [ $found -eq 0 ]; do
 
 	#calculate diffs using new file
 	mutated="${hotfiles[${#hotfiles[@]} - 1]}"
-	diffs="$( hexdiff -f ./$original -m ./$mutated -N | sed 's|[^0-9]*||' )"
-	diffs=$( echo $diffs | sed "s| .*$||" ) #temporary fix for formatting crap
+	diffs="$( hexdiff -f ./$original -m ./$mutated -N )"
 	#validate with regex
 	if [ $( echo $diffs | egrep -c "^[0-9]+$" ) -eq 0 ]; then
 		echo "dat aint no thang!"
@@ -311,21 +297,8 @@ while [ $found -eq 0 ]; do
 			echo "~$i $( date '+%y.%m.%d-%H.%M.%S' )"
 
 			file=$( echo $mutated | sed "s|\.$extension|_$i\.$extension|g" )
-			range=""
-			for arg in "${pieces[@]}"; do
-				if [[ "$piece" != "$arg" ]]; then
-					range="$range-R $arg "
-				fi
-			done
 
-			if [[ "$range" == "" ]]; then
-				range="-R 0:0"
-			else
-				echo "$range"
-			fi
-
-			#hexdiff -f $original -m $mutated -D -R $piece -I -o ./$file
-			hexdiff -f "$original" -m "$mutated" -D "$range" -o ./"$file"
+			hexdiff -f "$original" -m "$mutated" -D -I -R "$piece" -o ./"$file"
 
 			if [[ ! -e "./$file" ]]; then
 				echo "Couldn't find the file I just generated...?"
@@ -362,7 +335,6 @@ done
 solved=$( echo $mutated | sed "s|_.*|_solved\.$extension|g" )
 cp ./$mutated ./$solved
 hexdiff -f ./$original -m ./$solved > ./$( echo "$mutated" | sed "s|_.*||g" )_solved_diff.log
-diffs="$( hexdiff -f ./$original -m ./$mutated -N )"
 echo "diffs found and file generated!"
 echo "the file which contains just the magic bytes is:"
 echo "$mutated"
