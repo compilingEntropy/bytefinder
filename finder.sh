@@ -1,9 +1,10 @@
 #!/bin/bash
 
-reliable=0
 time=11
+reliable=0
+quick=0
 params=( $( for arg in "$@"; do echo "$arg"; done ) )
-usage="Usage: finder.sh -f ./original -m ./mutated [-t 11]"
+usage="Usage: finder.sh -f ./original -m ./mutated [-t 11] [-q]"
 
 i=0
 for arg in "${params[@]}"; do
@@ -18,6 +19,9 @@ for arg in "${params[@]}"; do
 	fi
 	if [[ "$arg" == "-r" ]]; then
 		reliable=1
+	fi
+	if [[ "$arg" == "-q" ]]; then
+		quick=1
 	fi
 	((i++))
 done
@@ -63,6 +67,11 @@ for file in "${files[@]}"; do
 		exit
 	fi
 done
+
+if [ $quick -eq 1 ]; then
+	echo "Using quick mode."
+	echo "Please note that quick mode only works if there's just one byte required to cause your crash."
+fi
 
 #crash directories
 crashroot="/private/var/mobile/Library/Logs/CrashReporter"
@@ -211,6 +220,7 @@ foundit()
 {
 	mv "$dir/$crash" "$wrkdir/crashes/"
 	echo "Moved $crash"
+	((crashes++))
 }
 
 stime="$( date '+%y.%m.%d-%H.%M.%S' )"
@@ -237,16 +247,19 @@ if [ $reliable -eq 0 ]; then
 			if [ $after -gt $before ]; then
 				((pass++))
 			else
-				((fail++))
+				break
 			fi
 		done
-
-		reliablilty=$(( ( $pass * 100 ) / $testnum ))
+		if (( $i == ( $testnum + 1 ) )); then
+			((i--))
+		fi
+		reliablilty=$(( ( $pass * 100 ) / $i ))
 		echo "Your crash is $reliablilty% reliable."
 		if [ $reliablilty -ne 100 ]; then
 			#warn, possibly exit
 			echo "Not good enough, increasing time..."
 			((time+=5))
+			pass=0
 		else
 			echo "Continuing..."
 			break
@@ -285,6 +298,11 @@ while [ $found -eq 0 ]; do
 			echo "At least $bytes bytes are required to cause the crash."
 		fi
 
+		if [ $j -ge 3 ] && [ $quick -eq 1 ]; then
+			echo "Could not find the magic byte, please try again with quick mode turned off."
+			exit
+		fi
+
 		if [ $bytes -ge $diffs ]; then
 			found=1
 			echo "Testing to make sure each remaining byte is important..."
@@ -321,6 +339,9 @@ while [ $found -eq 0 ]; do
 					#do something about the fact that there are multiple bugs in the same file (...?)
 				fi
 				found=0
+				if [ $quick -eq 1 ]; then
+					break
+				fi
 			fi
 
 		done
@@ -332,20 +353,24 @@ while [ $found -eq 0 ]; do
 
 done
 
+echo ""
 solved=$( echo $mutated | sed "s|_.*|_solved\.$extension|g" )
 cp ./$mutated ./$solved
 hexdiff -f ./$original -m ./$solved > ./$( echo "$mutated" | sed "s|_.*||g" )_solved_diff.log
-echo "diffs found and file generated!"
-echo "the file which contains just the magic bytes is:"
+echo "Diffs found and file generated!"
+echo "The file which contains just the magic bytes is:"
 echo "$mutated"
-echo "this file has been placed at $wrkdir/$solved"
-echo "the number of 'magic bytes' required for your crash is: $diffs"
-echo "here are your offsets and their differences:"
+echo "This file has been placed at $wrkdir/$solved"
+echo "The number of 'magic bytes' required for your crash is: $diffs"
+echo "Here are your offsets and their differences:"
 grep "0;31;10m" ./$( echo "$mutated" | sed "s|_.*||g" )_solved_diff.log
-echo "enjoy, eh?"
+echo "Enjoy, eh?"
 
-if [[ ! -d $wrkdir/crashes ]]; then
-	mkdir -p $wrkdir/crashes
+echo ""
+echo "Moving crashes to $wrkdir/crashes/"
+crashes=0
+if [[ ! -d $wrkdir/crashes/ ]]; then
+	mkdir -p $wrkdir/crashes/
 fi
 for dir in "${crashdirs[@]}"; do
 	cd "$dir/"
@@ -369,3 +394,4 @@ for dir in "${crashdirs[@]}"; do
 		fi
 	done
 done
+echo "Moved $crashes crashes."

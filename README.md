@@ -12,4 +12,4 @@ No network connection is required. You should, however, start and stop the scrip
 
 Always remember: Before you begin fuzzing, go to 'Settings' > 'General' > 'About' > 'Diagnostics & Usage' and check the "Don't Send" option. Otherwise, all your hard work will go to Apple and you will be sad. =(
 
-Usage:  `finder.sh -f ./original.mov -m ./mutated.mov [-t 11]`
+Usage:  `finder.sh -f ./original.mov -m ./mutated.mov [-t 11] [-q]`
