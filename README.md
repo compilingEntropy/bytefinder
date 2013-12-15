@@ -7,7 +7,7 @@ What it does:
 This will generate a file where the only differences remaining between it and the original are the differences required to cause a crash. It will also give you the offsets of those differences and what they are. Depends on https://github.com/uroboro/hexdiff/
 
 How it works:  
-Soooo complicated. I'll probably do a blogpost or something.  
+Soooo complicated. Check out my blogpost where I explain it: http://compilingentropy.blogspot.com/2013/12/finding-magic-bytes.html  
 No network connection is required. You should, however, start and stop the script over ssh (rather than mobileterminal) to avoid confusing the device as it does its work.
 
 Always remember: Before you begin fuzzing, go to 'Settings' > 'General' > 'About' > 'Diagnostics & Usage' and check the "Don't Send" option. Otherwise, all your hard work will go to Apple and you will be sad. =(

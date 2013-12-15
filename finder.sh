@@ -247,13 +247,11 @@ if [ $reliable -eq 0 ]; then
 			if [ $after -gt $before ]; then
 				((pass++))
 			else
+				((i++))
 				break
 			fi
 		done
-		if (( $i == ( $testnum + 1 ) )); then
-			((i--))
-		fi
-		reliablilty=$(( ( $pass * 100 ) / $i ))
+		reliablilty=$(( ( $pass * 100 ) / ( $i - 1 ) ))
 		echo "Your crash is $reliablilty% reliable."
 		if [ $reliablilty -ne 100 ]; then
 			#warn, possibly exit
@@ -296,11 +294,6 @@ while [ $found -eq 0 ]; do
 		bytes=$(( $j - 1 ))
 		if [ $j -gt $bookmark ]; then
 			echo "At least $bytes bytes are required to cause the crash."
-		fi
-
-		if [ $j -ge 3 ] && [ $quick -eq 1 ]; then
-			echo "Could not find the magic byte, please try again with quick mode turned off."
-			exit
 		fi
 
 		if [ $bytes -ge $diffs ]; then
