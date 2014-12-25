@@ -4,7 +4,7 @@ bytefinder
 Given a file and a mutated version of that file that crashes MobileSafari, this finds the bytes that cause the mutated version to crash MobileSafari.
 
 What it does:  
-This will generate a file where the only differences remaining between it and the original are the differences required to cause a crash. It will also give you the offsets of those differences and what they are. Depends on https://github.com/uroboro/hexdiff/
+This will generate a file where the only differences remaining between it and the original are the differences required to cause a crash. It will also give you the offsets of those differences and what they are. Depends on [hexdiff](https://github.com/uroboro/hexdiff/), which you can get [here](https://github.com/uroboro/cydia-repo.tihmstar.org) or on the `cydia-repo.tihmstar.org` repo.
 
 How it works:  
 Soooo complicated. Check out my blogpost where I explain it: http://compilingentropy.blogspot.com/2013/12/finding-magic-bytes.html  
