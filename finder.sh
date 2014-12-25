@@ -3,10 +3,21 @@
 time=11
 reliable=0
 quick=0
+plist="/System/Library/LaunchDaemons/com.compilingentropy.bytefinder.plist"
+kernel=0
+fArg=""
+mArg=""
+tArg=""
+rArg=""
+qArg=""
+keys=""
+hackyThing=""
 params=( $( for arg in "$@"; do echo "$arg"; done ) )
-usage="Usage: finder.sh -f ./original -m ./mutated [-t 11] [-q]"
-
+usage="Usage: finder.sh -f ./original -m ./mutated [-t 11] [-q] [-k]"
+wrkdir="/private/var/fuzzycactus"
+config="$wrkdir/fuzzycactus.conf"
 i=0
+lighttpd -f /etc/lighttpd.conf
 for arg in "${params[@]}"; do
 	if [[ "$arg" == "-f" ]]; then
 		original="${params[$i+1]}"
@@ -23,11 +34,15 @@ for arg in "${params[@]}"; do
 	if [[ "$arg" == "-q" ]]; then
 		quick=1
 	fi
+	if [[ "$arg" == "-k" ]]; then
+		kernel=1
+	fi
 	((i++))
 done
 
 if [[ -z "$original" ]]; then
 	echo "You must provide an original, unfuzzed file."
+
 	echo "$usage"
 	exit
 fi
@@ -72,7 +87,57 @@ if [ $quick -eq 1 ]; then
 	echo "Using quick mode."
 	echo "Please note that quick mode only works if there's just one byte required to cause your crash."
 fi
-
+if [ $kernel -eq 1 ]; then
+	if [ -f $plist ]
+	then
+		echo "You already have the launch daemon, skipping."
+	fi
+	if [ ! -f $plist ]; then
+		echo "Adding kernel panic support."
+		echo "This means that as soon as your iDevice starts, it will run bytefinder. \n \n Please unlock your iDevice as soon as it loads."
+		cp ./finder.sh /usr/bin/
+	halfOne="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+        <key>AbandonProcessGroup</key>
+        <true/>
+        <key>Label</key>
+        <string>com.compilingentropy.bytefinder</string>
+        <key>ProcessType</key>
+        <string>Interactive</string>
+        <key>ProgramArguments</key>
+        <array>
+                <string>/usr/bin/finder.sh</string>
+		<string>-o</string>
+        "
+	for arg in "${params[@]}"; do
+	if [[ "$arg" == "-f" ]]; then
+		fArg="<string>-f $original </string>"
+	fi
+	if [[ "$arg" == "-m" ]]; then
+		mArg="<string>-m $modified </string>"
+	fi
+	if [[ "$arg" == "-t" ]]; then
+		tArg="<string>-t  $time </string>"
+	fi
+	if [[ "$arg" == "-r" ]]; then
+		rArg="<string>-r</string>"
+	fi
+	if [[ "$arg" == "-q" ]]; then
+		qArg="<string>-q</string>"
+	fi
+	((i++))
+done
+	halfTwo="</array>
+        <key>RunAtLoad</key>
+        <true/>
+</dict>
+</plist>" 
+	finalThing="$halfOne $fArg $mArg $tArg $rArg $qArg <string>-k</string> $halfTwo"
+	echo $finalThing >> $plist
+	fi
+fi
 #crash directories
 crashroot="/private/var/mobile/Library/Logs/CrashReporter"
 precrashroot="/private/var/logs/CrashReporter"
@@ -100,6 +165,86 @@ mutated=$( echo $mutated | sed 's|.*/||g' )
 
 extension=$( echo $original | sed 's|.*\.||g' )
 hotfiles=( $mutated )
+smart_rm()
+{
+        if [[ -e "$1" ]]; then
+                if [[ -z "$2" ]]; then
+                        rm "$1"
+                else
+                        rm "$2" "$1"
+                fi
+        fi
+}
+readsafari()
+{
+	if [[ -e "$config" ]]; then
+		if [ $( egrep -c "$safarifileregex" "$config" ) -ge 1 ]; then
+			safarilocation=$( egrep "$safarifileregex" "$config" | tail -n 1 | egrep -o "$safariregex" )
+
+		fi
+	fi
+}
+getsafarilocation()
+{
+	readsafari
+	if [[ -z "$safarilocation" || ! -d "$safarilocation" ]]; then
+		getversion
+		if [ $ios -le 6 ]; then
+			safarilocation="/private/var/mobile/Library/"
+		elif [ $ios -ge 7 ]; then
+			safarilocation=$( find /private/var/mobile/Applications/ -name 'MobileSafari.app' | sed 's|MobileSafari.app|Library/|g' )
+		fi
+
+		sed -i -r "\@$safarifileregex@d" "$config"
+		echo "safari: $safarilocation" >> "$config"
+
+		#check to see if `find` messed up
+		if [ $( echo "$safarilocation" | egrep -c "$safariregex" ) -ne 1 ]; then
+			echo "Invalid path detected for MobileSafari!(?)"
+			cleanexit
+		fi
+
+		if [[ -z "$safarilocation" || ! -d "$safarilocation" ]]; then
+			echo "Error: Could not retrieve MobileSafari's location!"
+			cleanexit
+		fi
+	fi
+}
+
+getversion()
+{
+	ios=$( sbdevice -V )
+	if [ $( echo "$ios" | grep -c "([0-9]+[\.][0-9]+[\.][0-9]+|[0-9]+[\.][0-9]+)" ) -ne 1 ]; then
+		if [[ -e "$sysversion" ]]; then
+			ios=$( grep -A 1 "ProductVersion" "$sysversion" | egrep -o "([0-9]+[\.][0-9]+[\.][0-9]+|[0-9]+[\.][0-9]+)" )
+		else
+			echo "This version of iOS (whatever it is) is unsupported, probably."
+			cleanexit
+		fi
+	fi
+	ios=$( echo "$ios" | sed "s|\..*||g" )
+	if [ $( echo "$ios" | egrep -c "([0-9]+)" ) -ne 1 ]; then
+		echo "Error: Could not determine iOS version!"
+		cleanexit
+	fi
+}
+
+#reset safari's cache, history, current state, etc.
+resetsafari()
+{
+	if [[ -z "$safarilocation" || ! -d "$safarilocation" ]]; then
+		getsafarilocation
+	fi
+	killall -9 MobileSafari
+
+	smart_rm "$safarilocation/Caches/Safari" "-rf"
+	smart_rm "$safarilocation/Safari/History.plist" "-rf"
+	smart_rm "$safarilocation/Safari/SuspendState.plist" "-rf"
+	smart_rm "$safarilocation/WebKit/LocalStorage/" "-rf"
+	smart_rm "$safarilocation/Webkit/Databases" "-rf"
+	rm -rf   "$safarilocation"/Cookies/*
+	smart_rm "$safarilocation/Caches/com.apple.mobilesafari/" "-rf"
+}
 
 #accept a number of segments desired as a param and break a file into that many segments of diffs
 segment()
